@@ -169,7 +169,7 @@ if [[ -d "macos" ]]; then
   ensure_cocoapods
   run_step "pod deintegrate (macOS)" bash -c "cd macos && pod deintegrate"
 fi
-
+ 
 run_step "flutter pub get" flutter pub get
 
 if [[ -d "macos" ]]; then
