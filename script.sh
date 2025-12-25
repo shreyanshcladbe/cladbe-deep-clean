@@ -18,7 +18,7 @@ for arg in "$@"; do
   esac
 done
 
-# Verbose disables animations automatically
+# Verbose disables animations
 if [[ "$VERBOSE" == "true" ]]; then
   QUIET=false
 fi
@@ -41,14 +41,9 @@ else
 fi
 
 # =========================================================
-# Spinner / Progress
+# Spinner (non-verbose only)
 # =========================================================
-UNICODE_SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
-ASCII_SPINNER=("|" "/" "-" "\\")
-SPINNER_FRAMES=("${UNICODE_SPINNER[@]}")
-
-[[ "$CI_MODE" == "true" ]] && SPINNER_FRAMES=("${ASCII_SPINNER[@]}")
-
+SPINNER_FRAMES=("|" "/" "-" "\\")
 spinner_pid=""
 
 start_spinner() {
@@ -78,16 +73,29 @@ fail() {
   exit 1
 }
 
+# =========================================================
+# Step Runner
+# =========================================================
+STEP=0
+
 run_step() {
+  STEP=$((STEP + 1))
   local description="$1"
   shift
 
   if [[ "$VERBOSE" == "true" ]]; then
     echo
-    echo -e "${BOLD}Running:${RESET} $*"
+    echo -e "${BOLD}STEP $STEP:${RESET} $description"
+    echo "--------------------------------------------------"
+    echo "Command:"
+    echo "$*"
+    echo "--------------------------------------------------"
+
     if "$@"; then
+      echo "--------------------------------------------------"
       echo -e "${GREEN}[OK]${RESET} $description"
     else
+      echo "--------------------------------------------------"
       echo -e "${RED}[FAIL]${RESET} $description"
       exit 1
     fi
@@ -128,7 +136,7 @@ echo -e "${GREEN}[FOUND]${RESET} $PROJECT_ROOT"
 echo
 
 # =========================================================
-# CocoaPods auto-install
+# CocoaPods auto-install (macOS only)
 # =========================================================
 ensure_cocoapods() {
   if ! command -v pod >/dev/null 2>&1; then
