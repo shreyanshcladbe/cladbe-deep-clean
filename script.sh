@@ -24,7 +24,7 @@ if [[ "$VERBOSE" == "true" ]]; then
 fi
 
 # =========================================================
-# Styling
+# Styling (auto-disabled in CI / no-color)
 # =========================================================
 if [[ "$NO_COLOR" == "true" || "$CI_MODE" == "true" ]]; then
   RESET=""; BOLD=""; DIM=""
@@ -41,9 +41,14 @@ else
 fi
 
 # =========================================================
-# Spinner (non-verbose only)
+# Spinner / Progress (UNCHANGED)
 # =========================================================
-SPINNER_FRAMES=("|" "/" "-" "\\")
+UNICODE_SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+ASCII_SPINNER=("|" "/" "-" "\\")
+SPINNER_FRAMES=("${UNICODE_SPINNER[@]}")
+
+[[ "$CI_MODE" == "true" ]] && SPINNER_FRAMES=("${ASCII_SPINNER[@]}")
+
 spinner_pid=""
 
 start_spinner() {
@@ -71,6 +76,18 @@ fail() {
   kill "$spinner_pid" >/dev/null 2>&1 || true
   printf "\r${RED}[FAIL]${RESET} %s\n" "$1"
   exit 1
+}
+
+progress_bar() {
+  [[ "$QUIET" == "true" || "$CI_MODE" == "true" || "$VERBOSE" == "true" ]] && return
+  local width=30
+  for ((i=0; i<=width; i++)); do
+    filled=$(printf "%${i}s" | tr ' ' '#')
+    empty=$(printf "%$((width-i))s" | tr ' ' '-')
+    printf "\r${BLUE}[%s%s]${RESET}" "$filled" "$empty"
+    sleep 0.03
+  done
+  printf "\r"
 }
 
 # =========================================================
@@ -105,6 +122,7 @@ run_step() {
   start_spinner "$description"
   if "$@" >/dev/null 2>&1; then
     stop_spinner "$description"
+    progress_bar
   else
     fail "$description"
   fi
@@ -113,7 +131,7 @@ run_step() {
 # =========================================================
 # Locate Flutter project root
 # =========================================================
-echo -e "${BOLD}Locating Flutter project root...${RESET}"
+[[ "$QUIET" == "false" ]] && echo -e "${BOLD}Locating Flutter project root...${RESET}"
 
 CURRENT_DIR="$(pwd)"
 PROJECT_ROOT=""
@@ -132,7 +150,8 @@ if [[ -z "$PROJECT_ROOT" ]]; then
 fi
 
 cd "$PROJECT_ROOT"
-echo -e "${GREEN}[FOUND]${RESET} $PROJECT_ROOT"
+
+[[ "$QUIET" == "false" ]] && echo -e "${GREEN}[FOUND]${RESET} $PROJECT_ROOT"
 echo
 
 # =========================================================
@@ -152,13 +171,13 @@ ensure_cocoapods() {
 # =========================================================
 # Cleanup pipeline
 # =========================================================
-echo -e "${BOLD}Starting Flutter deep clean...${RESET}"
+[[ "$QUIET" == "false" ]] && echo -e "${BOLD}Starting Flutter deep clean...${RESET}"
 echo
 
 if [[ -f "pubspec.lock" ]]; then
   run_step "Removing pubspec.lock" rm -f pubspec.lock
 else
-  echo -e "${YELLOW}[SKIP]${RESET} pubspec.lock not found"
+  [[ "$QUIET" == "false" ]] && echo -e "${YELLOW}[SKIP]${RESET} pubspec.lock not found"
 fi
 
 run_step "flutter clean" flutter clean
@@ -169,7 +188,7 @@ if [[ -d "macos" ]]; then
   ensure_cocoapods
   run_step "pod deintegrate (macOS)" bash -c "cd macos && pod deintegrate"
 fi
- 
+
 run_step "flutter pub get" flutter pub get
 
 if [[ -d "macos" ]]; then
