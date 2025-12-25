@@ -6,18 +6,25 @@ set -e
 # Flags & Environment
 # =========================================================
 QUIET=false
+VERBOSE=false
 NO_COLOR=${NO_COLOR:-false}
 CI_MODE=${CI:-false}
 
 for arg in "$@"; do
   case "$arg" in
     -q|--quiet) QUIET=true ;;
+    -v|--verbose) VERBOSE=true ;;
     --no-color) NO_COLOR=true ;;
   esac
 done
 
+# Verbose disables animations automatically
+if [[ "$VERBOSE" == "true" ]]; then
+  QUIET=false
+fi
+
 # =========================================================
-# Styling (auto-disabled in CI / no-color)
+# Styling
 # =========================================================
 if [[ "$NO_COLOR" == "true" || "$CI_MODE" == "true" ]]; then
   RESET=""; BOLD=""; DIM=""
@@ -43,10 +50,9 @@ SPINNER_FRAMES=("${UNICODE_SPINNER[@]}")
 [[ "$CI_MODE" == "true" ]] && SPINNER_FRAMES=("${ASCII_SPINNER[@]}")
 
 spinner_pid=""
-progress_pid=""
 
 start_spinner() {
-  [[ "$QUIET" == "true" ]] && return
+  [[ "$QUIET" == "true" || "$VERBOSE" == "true" ]] && return
   local msg="$1"
   (
     i=0
@@ -60,7 +66,7 @@ start_spinner() {
 }
 
 stop_spinner() {
-  [[ "$QUIET" == "true" ]] && return
+  [[ "$QUIET" == "true" || "$VERBOSE" == "true" ]] && return
   kill "$spinner_pid" >/dev/null 2>&1 || true
   wait "$spinner_pid" 2>/dev/null || true
   printf "\r${GREEN}[OK]${RESET} %s\n" "$1"
@@ -72,25 +78,25 @@ fail() {
   exit 1
 }
 
-progress_bar() {
-  [[ "$QUIET" == "true" || "$CI_MODE" == "true" ]] && return
-  local width=30
-  for ((i=0; i<=width; i++)); do
-    filled=$(printf "%${i}s" | tr ' ' '#')
-    empty=$(printf "%$((width-i))s" | tr ' ' '-')
-    printf "\r${BLUE}[%s%s]${RESET}" "$filled" "$empty"
-    sleep 0.03
-  done
-  printf "\r"
-}
-
 run_step() {
   local description="$1"
   shift
+
+  if [[ "$VERBOSE" == "true" ]]; then
+    echo
+    echo -e "${BOLD}Running:${RESET} $*"
+    if "$@"; then
+      echo -e "${GREEN}[OK]${RESET} $description"
+    else
+      echo -e "${RED}[FAIL]${RESET} $description"
+      exit 1
+    fi
+    return
+  fi
+
   start_spinner "$description"
   if "$@" >/dev/null 2>&1; then
     stop_spinner "$description"
-    progress_bar
   else
     fail "$description"
   fi
@@ -99,7 +105,7 @@ run_step() {
 # =========================================================
 # Locate Flutter project root
 # =========================================================
-[[ "$QUIET" == "false" ]] && echo -e "${BOLD}Locating Flutter project root...${RESET}"
+echo -e "${BOLD}Locating Flutter project root...${RESET}"
 
 CURRENT_DIR="$(pwd)"
 PROJECT_ROOT=""
@@ -118,12 +124,11 @@ if [[ -z "$PROJECT_ROOT" ]]; then
 fi
 
 cd "$PROJECT_ROOT"
-
-[[ "$QUIET" == "false" ]] && echo -e "${GREEN}[FOUND]${RESET} $PROJECT_ROOT"
+echo -e "${GREEN}[FOUND]${RESET} $PROJECT_ROOT"
 echo
 
 # =========================================================
-# CocoaPods auto-install (macOS only)
+# CocoaPods auto-install
 # =========================================================
 ensure_cocoapods() {
   if ! command -v pod >/dev/null 2>&1; then
@@ -139,13 +144,13 @@ ensure_cocoapods() {
 # =========================================================
 # Cleanup pipeline
 # =========================================================
-[[ "$QUIET" == "false" ]] && echo -e "${BOLD}Starting Flutter deep clean...${RESET}"
+echo -e "${BOLD}Starting Flutter deep clean...${RESET}"
 echo
 
 if [[ -f "pubspec.lock" ]]; then
   run_step "Removing pubspec.lock" rm -f pubspec.lock
 else
-  [[ "$QUIET" == "false" ]] && echo -e "${YELLOW}[SKIP]${RESET} pubspec.lock not found"
+  echo -e "${YELLOW}[SKIP]${RESET} pubspec.lock not found"
 fi
 
 run_step "flutter clean" flutter clean
@@ -166,4 +171,3 @@ fi
 
 echo
 echo -e "${GREEN}${BOLD}Flutter deep clean completed successfully.${RESET}"
-
