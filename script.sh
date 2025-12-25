@@ -173,8 +173,7 @@ fi
 run_step "flutter pub get" flutter pub get
 
 if [[ -d "macos" ]]; then
-  run_step "pod install (macOS)" bash -c "cd macos && pod install"
-  run_step "pod repo update (macOS)" bash -c "cd macos && pod repo update"
+  run_step "pod install --repo-update (macOS)" bash -c "cd macos && pod install --repo-update"
 fi
 
 echo
